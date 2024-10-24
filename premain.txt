@@ -1,0 +1,53 @@
+import pandas as pd
+import numpy as np
+from utils.data_processing import scan_directory
+from models.generator import generate_synthetic_data
+from models.discriminator import RansomwareDiscriminator
+
+def preprocess_data(files_df):
+    """Convert categorical features to numeric and drop any empty entries."""
+    # One-hot encoding for the 'File Extension'
+    if 'File Extension' in files_df.columns:
+        extensions_encoded = pd.get_dummies(files_df['File Extension'], prefix='ext')
+        files_df = pd.concat([files_df, extensions_encoded], axis=1)
+        files_df.drop('File Extension', axis=1, inplace=True)
+
+    # Drop any rows with NaN values
+    files_df.dropna(inplace=True)
+    
+    return files_df
+
+if __name__ == "__main__":
+    directory_to_scan = "C:/Users/aayus/Documents"  # Replace with the directory to scan
+    files_df = scan_directory(directory_to_scan)
+    
+    # Check if files_df is empty
+    if files_df.empty:
+        print("No files found in the specified directory.")
+    else:
+        # Generate synthetic data
+        synthetic_data = generate_synthetic_data(num_samples=100)
+
+        # Check if synthetic_data is empty
+        if synthetic_data.empty:
+            print("No synthetic data generated.")
+        else:
+            # Combine real and synthetic data
+            combined_data = pd.concat([files_df, synthetic_data], ignore_index=True)
+
+            # Preprocess the data
+            combined_data = preprocess_data(combined_data)
+
+            # Assuming combined_data has a 'Label' column to indicate ransomware or not
+            combined_data['Label'] = np.random.choice([0, 1], size=len(combined_data))  # Random labels for demo
+
+            # Train the model
+            discriminator = RansomwareDiscriminator()
+            discriminator.train(combined_data)
+            
+            # Detect ransomware in real files
+            predictions = discriminator.predict(files_df)
+            
+            # Output results
+            files_df['Predicted'] = predictions
+            print(files_df[['File Path', 'Predicted']])
